@@ -1,0 +1,19 @@
+# matlabengine
+causal-learn
+git+https://github.com/CausalDisco/gadjid.git@custom_node_pairs
+JPype1
+matplotlib
+networkx
+notebook
+numpy
+git+https://github.com/cmu-phil/py-tetrad
+rcd==0.1.2 # breaking changes since this
+rpy2
+seaborn
+scipy
+tqdm
+
+# R packages
+# install.packages("BiocManager")
+# BiocManager::install(c("graph", "RBGL", "Rgraphviz"))
+# install.packages(c("pcalg", "igraph", "expm", "profvis", "bnlearn", "dagitty"))

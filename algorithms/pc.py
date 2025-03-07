@@ -44,6 +44,7 @@ def pc(
         pdag = UCSepset.uc_sepset(skeleton, 0)
     else:
         pdag = UCSepset.uc_sepset(skeleton, 3)
+        pdag.G.reconstitute_dpath(pdag.G.get_graph_edges())
 
     # Orient Meek rules
     cpdag = Meek.meek(pdag)

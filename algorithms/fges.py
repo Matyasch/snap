@@ -1,20 +1,24 @@
 from contextlib import chdir
-import os
+from pathlib import Path
 import sys
 
 import numpy as np
 import pandas as pd
 
-from utils import CountingTest
+from causallearn.utils.cit import CIT
 
-sys.path.insert(1, os.getcwd() + "/py-tetrad/pytetrad")
-with chdir("py-tetrad/pytetrad"):
-    import tools.TetradSearch as ts
+pytetrad_path = Path.cwd() / "py-tetrad/pytetrad"
+if pytetrad_path.exists():
+    sys.path.insert(1, str(pytetrad_path))
+    with chdir("py-tetrad/pytetrad"):
+        import tools.TetradSearch as ts
+else:
+    print("Warning: py-tetrad not found")
 
 
 def fges(
     data: np.ndarray,
-    ci_test: CountingTest,
+    ci_test: CIT,
     ignore: list[int] = [],
     **kwargs,
 ) -> dict:
@@ -23,7 +27,7 @@ def fges(
 
     Args:
         data (np.ndarray): The data matrix.
-        ci_test (CountingTest): CI test to determine appropriate score function.
+        ci_test (CIT): CI test to determine appropriate score function.
         ignore (list[int]): Nodes to ignore.
         **kwargs: Additional arguments are ignored.
 

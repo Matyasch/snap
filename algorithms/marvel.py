@@ -6,7 +6,7 @@ from typing import Callable
 from causallearn.utils.PCUtils import Meek
 from rcd.marvel.marvel import Marvel
 
-from utils import FastCausalGraph
+from algorithms.snap import FastCausalGraph
 
 
 class OrientableMarvel(Marvel):

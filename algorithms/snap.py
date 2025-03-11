@@ -1,14 +1,51 @@
 from copy import deepcopy
 from itertools import combinations
+from types import MethodType
 
 from causallearn.utils.cit import CIT
+from causallearn.graph.Edge import Edge
+from causallearn.graph.GraphClass import CausalGraph
 from causallearn.utils.PCUtils import UCSepset, Meek
 from causallearn.utils.PCUtils.Helper import append_value
 import networkx as nx
 import numpy as np
 
-from utils import FastCausalGraph
-from causallearn.graph.GraphClass import CausalGraph
+
+class FastCausalGraph(CausalGraph):
+    """
+    CausalGraph that implements faster edge removal.
+    """
+
+    def __init__(self, *vargs, **kwargs):
+        super().__init__(*vargs, **kwargs)
+        self.G.remove_edge = MethodType(FastCausalGraph._remove_edge, self.G)
+
+    def _remove_edge(self, edge: Edge):
+        """
+        Same as the original function, but without the call to reconstitute_dpath and only considers CPDAGs.
+        """
+        i = self.node_map[edge.get_node1()]
+        j = self.node_map[edge.get_node2()]
+        self.graph[j, i] = 0
+        self.graph[i, j] = 0
+
+    @staticmethod
+    def from_amat(amat: np.ndarray):
+        """
+        Create a FastCausalGraph from an adjacency matrix.
+
+        Args:
+            amat (np.ndarray): The adjacency matrix.
+
+        Returns:
+            FastCausalGraph: The created FastCausalGraph.
+        """
+        amat = amat.copy()
+        amat[amat == 1] = -1
+        amat[np.logical_and(amat == 0, amat.T == -1)] = 1
+        cg = FastCausalGraph(len(amat))
+        cg.G.graph = amat
+        return cg
 
 
 def skeleton_step(
@@ -132,9 +169,9 @@ def orient_v_structures_rfci(
     return pdag, skeleton
 
 
-def get_def_non_ancestors(cg: CausalGraph, targets: list[int]) -> list[int]:
+def get_poss_anc(cg: CausalGraph, targets: list[int]) -> list[int]:
     """
-    Get nodes that are definite non-ancestors of any target
+    Get possible ancestors of any target.
 
     Args:
         cg (CausalGraph): The causal graph.
@@ -150,9 +187,9 @@ def get_def_non_ancestors(cg: CausalGraph, targets: list[int]) -> list[int]:
     amat = amat.astype(bool)
     # Reachability matrix
     reach = np.linalg.matrix_power(amat, amat.shape[0] - 1)
-    # Nodes that do not reach any target
-    non_anc = np.all(np.invert(reach[:, targets]), axis=1)
-    return np.where(non_anc)[0]
+    # Nodes that reach at least one target
+    poss_anc = np.any(reach[:, targets], axis=1)
+    return np.where(poss_anc)[0]
 
 
 def snap(
@@ -162,8 +199,6 @@ def snap(
     targets: list[int],
     ignore: list[int] = [],
     max_order: int = -1,
-    filter_mode: bool = False,
-    oracle: bool = False,
     **kwargs,
 ) -> list[int] | dict:
     """
@@ -177,52 +212,45 @@ def snap(
         targets (list[int]): The target nodes.
         ignore (list[int]): Nodes to ignore.
         max_order (int): The maximum order of CI tests.
-        filter_mode (bool): Whether SNAP is only used to find non-ancestors.
         oracle (bool): Whether d-separation tests are used.
         **kwargs: Additional arguments are ignored.
 
     Returns:
         list[int] | dict: Non-ancestors or adjacency matrix of CPDAG.
     """
-    if max_order < 0 and filter_mode:
-        raise ValueError("Max order must be specified for filtering mode")
-    elif max_order < 0 and not filter_mode:
+    if max_order < 0:
         max_order = data.shape[1] - 1  # Run until completion
 
     skeleton = FastCausalGraph(no_of_var=data.shape[1])
     skeleton.set_ind_test(ci_test)
     skeleton.G.graph[ignore, :] = skeleton.G.graph[:, ignore] = 0
 
-    non_anc = []
+    all_nodes = poss_anc = np.arange(data.shape[1])
     for order in range(max_order + 1):
         if skeleton.max_degree() <= order:
             break
         skeleton = skeleton_step(data, order, skeleton, alpha)
         if order < 2:
-            g = UCSepset.uc_sepset(skeleton, 1)
+            pdag = UCSepset.uc_sepset(skeleton, 1)
         else:
-            g, skeleton = orient_v_structures_rfci(skeleton, alpha)
-        non_anc = get_def_non_ancestors(g, targets)
+            pdag, skeleton = orient_v_structures_rfci(skeleton, alpha)
+        poss_anc = get_poss_anc(pdag, targets)
+        non_anc = np.setdiff1d(all_nodes, poss_anc)
         skeleton.G.graph[non_anc, :] = skeleton.G.graph[:, non_anc] = 0
 
-    if filter_mode:
-        return {"non_anc": non_anc}
+    # Early stopped for pre-filtering
+    if max_order < data.shape[1] - 1:
+        pdag.to_nx_graph()
+        return {"poss_anc": poss_anc, "amat": nx.to_numpy_array(pdag.nx_graph)}
 
-    # Early stopped due to max order
-    if max_order < 2:
-        pdag = UCSepset.uc_sepset(skeleton, 1)
-    elif max_order < data.shape[1] - 1:
-        pdag = orient_v_structures_rfci(skeleton, alpha)[0]
-    # Ran until completion, decide v-structure prioritization to get CPDAG
-    elif oracle:
-        pdag = UCSepset.uc_sepset(skeleton, 0)
-    else:
-        pdag = UCSepset.uc_sepset(skeleton, 3)
-        pdag.G.reconstitute_dpath(pdag.G.get_graph_edges())
+    # Ran until completion, orient v-structures normally
+    pdag = UCSepset.uc_sepset(skeleton)
+    pdag.G.reconstitute_dpath(pdag.G.get_graph_edges())
 
     # Orient Meek rules
     cpdag = Meek.meek(pdag)
-    non_anc = get_def_non_ancestors(cpdag, targets)
+    poss_anc = get_poss_anc(pdag, targets)
+    non_anc = np.setdiff1d(all_nodes, poss_anc)
     cpdag.G.graph[non_anc, :] = cpdag.G.graph[:, non_anc] = 0
 
     cpdag.to_nx_graph()

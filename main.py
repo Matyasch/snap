@@ -1,15 +1,60 @@
 from argparse import ArgumentParser
+from collections import defaultdict
 from concurrent.futures import as_completed, ProcessPoolExecutor
-from functools import partial
 import sys
 from time import process_time
 from typing import Callable
 
+from causallearn.utils.cit import CIT
 import numpy as np
 from tqdm import tqdm
 
 from algorithms import ALGORITHMS, snap
-import utils
+from generate_data import generate_data
+
+
+class CountingTest:
+    """
+    Wrapper for CI tests that counts the number of tests done.
+    """
+
+    def __init__(
+        self,
+        data: np.ndarray,
+        ci_test: str,
+        **kwargs,
+    ):
+        self.cit = CIT(data, ci_test, **kwargs)
+        self.method = self.cit.method
+        self.tests_done = defaultdict(set)
+
+    def __call__(
+        self, X: int, Y: int, condition_set: list[int] | None = [], *args, **kwargs
+    ):
+        if condition_set is None:
+            condition_set = []
+        self.tests_done[frozenset((X, Y))] |= {tuple(condition_set)}
+        p = self.cit(X, Y, condition_set)
+        return p
+
+    def get_tests_per_order(self) -> np.ndarray:
+        """
+        Get the number of tests done per order.
+
+        Returns:
+            np.ndarray: The number of tests done per order.
+        """
+        num_nodes = self.cit.data.shape[1]
+        cond_sets = self.tests_done.values()
+        if not cond_sets:
+            return np.zeros(num_nodes, dtype=int)
+        orders, test_num = np.unique(
+            [len(cond) for conds in cond_sets for cond in conds],
+            return_counts=True,
+        )
+        tests_per_order = np.zeros(num_nodes, dtype=int)
+        tests_per_order[orders] = test_num
+        return tests_per_order
 
 
 def parse_args():
@@ -71,7 +116,7 @@ def run_algorithm(
     filter_order: int,
     ci_test: str,
     alpha: float,
-    **kwargs
+    **kwargs,
 ) -> dict:
     """
     Run the given causal discovery algorithm on the given data.
@@ -89,20 +134,19 @@ def run_algorithm(
     Returns:
         dict: Results of the experiment.
     """
-    ci_tester = utils.CountingTest(data, ci_test, **kwargs)
+    ci_tester = CountingTest(data, ci_test, **kwargs)
     start = process_time()
     # Pre-filter non-ancestors with SNAP
     if filter_order >= 0:
-        ignore = snap(
+        poss_anc = snap(
             data=data,
             ci_test=ci_tester,
             alpha=alpha,
             targets=targets,
             max_order=filter_order,
-            filter_mode=True,
-            oracle=(ci_test == "d_separation"),
             **kwargs,
-        )["non_anc"]
+        )["poss_anc"]
+        ignore = np.setdiff1d(np.arange(data.shape[1]), poss_anc)
     else:
         ignore = []
 
@@ -169,7 +213,7 @@ def generate_data_and_run_algorithm(
     Returns:
         list[dict]: Results of the experiments.
     """
-    data = utils.generate_data(
+    data = generate_data(
         seed=seed,
         file=file,
         nodes=nodes,

@@ -8,10 +8,10 @@ import numpy as np
 from rpy2.robjects import default_converter, globalenv, numpy2ri, r
 
 from ldecc_github.utils import get_all_combinations
-from utils import generate_data
+from generate_data import generate_data
 
 r.source("evaluate/evaluate.R")
-r.source("generate_data.R")
+r.source("generate_data/generate_data.R")
 
 
 def get_test_nums(results: list[dict]) -> np.ndarray:

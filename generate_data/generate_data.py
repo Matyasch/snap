@@ -1,99 +1,12 @@
-from collections import defaultdict
 import json
 from pathlib import Path
 import pickle
-from types import MethodType
-from typing import Callable
 
-from causallearn.graph.Edge import Edge
-from causallearn.graph.GraphClass import CausalGraph
-from causallearn.utils.cit import CIT
 import numpy as np
 import networkx as nx
 from rpy2.robjects import r
 
-r.source("generate_data.R")
-
-
-class CountingTest:
-    """
-    Wrapper for CI tests that counts the number of tests done.
-    """
-
-    def __init__(
-        self,
-        data: np.ndarray,
-        ci_test: str,
-        **kwargs,
-    ):
-        self.cit = CIT(data, ci_test, **kwargs)
-        self.method = self.cit.method
-        self.tests_done = defaultdict(set)
-
-    def __call__(
-        self, X: int, Y: int, condition_set: list[int] | None = [], *args, **kwargs
-    ):
-        if condition_set is None:
-            condition_set = []
-        self.tests_done[frozenset((X, Y))] |= {tuple(condition_set)}
-        p = self.cit(X, Y, condition_set)
-        return p
-
-    def get_tests_per_order(self) -> np.ndarray:
-        """
-        Get the number of tests done per order.
-
-        Returns:
-            np.ndarray: The number of tests done per order.
-        """
-        num_nodes = self.cit.data.shape[1]
-        cond_sets = self.tests_done.values()
-        if not cond_sets:
-            return np.zeros(num_nodes, dtype=int)
-        orders, test_num = np.unique(
-            [len(cond) for conds in cond_sets for cond in conds],
-            return_counts=True,
-        )
-        tests_per_order = np.zeros(num_nodes, dtype=int)
-        tests_per_order[orders] = test_num
-        return tests_per_order
-
-
-class FastCausalGraph(CausalGraph):
-    """
-    CausalGraph that implements faster edge removal and kite search.
-    """
-
-    def __init__(self, *vargs, **kwargs):
-        super().__init__(*vargs, **kwargs)
-        self.G.remove_edge = MethodType(FastCausalGraph._remove_edge, self.G)
-
-    def _remove_edge(self, edge: Edge):
-        """
-        Same as the original function, but without the call to reconstitute_dpath and only considers CPDAGs.
-        """
-        i = self.node_map[edge.get_node1()]
-        j = self.node_map[edge.get_node2()]
-        self.graph[j, i] = 0
-        self.graph[i, j] = 0
-
-    @staticmethod
-    def from_amat(amat: np.ndarray):
-        """
-        Create a FastCausalGraph from an adjacency matrix.
-
-        Args:
-            amat (np.ndarray): The adjacency matrix.
-
-        Returns:
-            FastCausalGraph: The created FastCausalGraph.
-        """
-        amat = amat.copy()
-        amat[amat == 1] = -1
-        amat[np.logical_and(amat == 0, amat.T == -1)] = 1
-        cg = FastCausalGraph(len(amat))
-        cg.G.graph = amat
-        return cg
+r.source("generate_data/generate_data.R")
 
 
 def save_data(data: dict, seed: int, **kwargs):

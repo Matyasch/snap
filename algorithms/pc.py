@@ -3,8 +3,7 @@ from causallearn.utils.PCUtils import UCSepset, Meek
 import networkx as nx
 import numpy as np
 
-from algorithms.snap import skeleton_step
-from utils import FastCausalGraph
+from algorithms.snap import FastCausalGraph, skeleton_step
 
 
 def pc(

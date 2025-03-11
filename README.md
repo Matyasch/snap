@@ -5,6 +5,8 @@ This is the official code repository for **SNAP: Sequential Non-Ancestor Pruning
 Please consult `python3 main.py -h` for parameters. A demo is provided in `demo.ipynb`. The SNAP algorithm is implemented in [`algorithms/snap.py`](algorithms/snap.py).
 
 ## Requirements
+To reporoduce the results of the paper, all dependencies described below have to be installed. To use only SNAP, you can copy the self-contained code in [`algorithms/snap.py`](algorithms/snap.py) and install only the dependencies listed in there.
+
 Python dependencies can be installed with `pip3 install -r requirements.txt`
 
 R dependencies can be installed as follows

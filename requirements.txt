@@ -1,18 +1,7 @@
-causal-learn
-git+https://github.com/CausalDisco/gadjid.git@custom_node_pairs
-JPype1
-matplotlib
-networkx
-notebook
+# SNAP dependencies
 numpy
-git+https://github.com/cmu-phil/py-tetrad
-rcd==0.1.2 # breaking changes since this
-rpy2
-seaborn
-scipy
-tqdm
-
-# R packages
-# install.packages("BiocManager")
-# BiocManager::install(c("graph", "RBGL", "Rgraphviz"))
-# install.packages(c("pcalg", "igraph", "expm", "bnlearn", "dagitty"))
+# Demo dependencies
+causal-learn
+dowhy
+networkx==3.4.2 # Dowhy requires networkx<3.5
+pandas

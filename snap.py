@@ -261,7 +261,7 @@ def get_poss_anc(g: np.ndarray, targets: list[int]) -> list[int]:
         targets (list[int]): The target nodes.
 
     Returns:
-        list[int]: Definite non-ancestors of any target.
+        list[int]: Possible ancestors of any target.
     """
     g = -g.copy()
     g[g == -1] = 0
@@ -283,7 +283,7 @@ def snap(
     **kwargs,
 ) -> list[int] | dict:
     """
-    SNAP algorithm to find causal graph or the non-ancestors of targets
+    SNAP algorithm to estimate the CPDAG over the possibly ancestral set of the targets, up to a maximum order of CI tests.
 
     Args:
         data (np.ndarray): The data matrix.
@@ -294,7 +294,7 @@ def snap(
         **kwargs: Additional arguments are ignored.
 
     Returns:
-        dict: Non-ancestors and adjacency matrix of CPDAG.
+        dict: Adjacency matrix of pruned CPDAG and possible ancestors of targets.
     """
     num_nodes = data.shape[1]
     if max_order < 0:  # Run SNAP(infinity) until completion
@@ -338,4 +338,4 @@ def snap(
     # Convert to networkx format
     amat = np.zeros_like(res, dtype=int)
     amat[res == -1] = 1
-    return {"amat": amat, "poss_anc": poss_anc.tolist()}
+    return {"amat": amat, "poss_anc": poss_anc}
